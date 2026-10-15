@@ -1,0 +1,46 @@
+import User from "../models/User.js";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+
+export async function registerUser({ username, email, password }) {
+
+  const [emailExists, usernameExists] = await Promise.all([
+    User.findOne({ email }),
+    User.findOne({ username })
+  ]);
+  if (emailExists) 
+    return { ok: false, status: 400, message: "Email already exists" };
+
+  if (usernameExists) 
+    return { ok: false, status: 400, message: "Username already taken" };
+
+  const hashedPassword = await bcrypt.hash(password,10);
+
+  await User.create({ 
+    username,
+    email, 
+    password: hashedPassword });
+
+  return { ok: true, status: 201, message: "User registered" };
+}
+
+export async function authenticateUser({ email, password }) {
+  const user = await User.findOne({email});
+
+  if (!user) 
+    return { ok: false, status: 401, message: "Invalid credentials" };
+
+  const isMatch = await bcrypt.compare(password, user.password);
+
+  if(!isMatch)
+    return { ok: false, status: 401, message: "Invalid credentials" };
+
+  const token = jwt.sign(
+    {userId: user._id, email: user.email}, //payload by user
+    process.env.JWT_SECRET,                // secret key 
+    {expiresIn: process.env.JWT_EXPIRES_IN} //options 
+      //header n sign is auto created 
+  );
+
+  return { ok: true, status: 200, message: "Login Successful", token };
+}
